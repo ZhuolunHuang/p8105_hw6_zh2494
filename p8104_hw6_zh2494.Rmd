@@ -1,0 +1,86 @@
+---
+title: "p8105_hw6_zh2494"
+author: "zhuolun"
+date: "11/29/2021"
+output: github_document
+---
+
+```{r}
+library(tidyverse)
+library(viridis)
+library(modelr)
+library(mgcv)
+library(p8105.datasets)
+
+knitr::opts_chunk$set(
+	echo = TRUE,
+	warning = FALSE,
+	fig.width = 8, 
+  fig.height = 6,
+  out.width = "90%"
+)
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+set.seed(1)
+```
+
+# Problem 1
+
+read and clean the data  
+* The column names are tidy so no need to do anything  
+* Convert units: (pounds to grams, inches to centimeters)  
+```{r}
+baby_df = 
+  read_csv("data/birthweight.csv") %>% 
+  mutate(
+    babysex = factor(babysex),
+    frace = factor(frace),
+    malform = factor(malform),
+    mrace = factor(mrace),
+    mheight = mheight * 2.54,
+    delwt = delwt * 453.592,
+    ppwt = ppwt * 453.592,
+    wtgain = wtgain * 453.592)
+    
+```
+
+* checks the number of na, there is 0 missing value.  
+```{r}
+sum(is.na(baby_df))
+```
+
+Create models 
+```{r}
+model_len_ges = lm(bwt ~ blength + gaweeks, data = baby_df)
+model_len_ges %>% 
+  broom::tidy() %>% 
+  knitr::kable(digits = 3)
+
+model_head_len_sex = lm(bwt ~ bhead * blength * babysex, data = baby_df)
+model_head_len_sex %>% 
+  broom::tidy() %>% 
+  knitr::kable(digits = 3)
+```
+
+```{r}
+baby_df %>% 
+  modelr::add_residuals(model_len_ges) %>% 
+  modelr::add_predictions(model_len_ges) %>% 
+  ggplot(aes(x = pred, y = resid)) + 
+  geom_point()
+```
+
+```{r}
+baby_df %>% 
+  modelr::add_residuals(model_head_len_sex) %>% 
+  modelr::add_predictions(model_head_len_sex) %>% 
+  ggplot(aes(x = pred, y = resid)) + 
+  geom_point()
+
+```
+
