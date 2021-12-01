@@ -67,6 +67,10 @@ model_head_len_sex %>%
   knitr::kable(digits = 3)
 ```
 
+The p-value = 0 becasue it is smaller than the minimum display value. Also notice that `bhead:blength` is not significant.  
+
+the plot of model residuals against fitted values for the first model: length at birth and gestational age as predictors   
+
 ```{r}
 baby_df %>% 
   modelr::add_residuals(model_len_ges) %>% 
@@ -74,6 +78,9 @@ baby_df %>%
   ggplot(aes(x = pred, y = resid)) + 
   geom_point()
 ```
+comment: there are some wired values, but overall is good  
+
+a plot of model residuals against fitted values for the second model: head circumference, length at birth, sex, and all interactions (including the three-way interaction).  
 
 ```{r}
 baby_df %>% 
@@ -83,4 +90,74 @@ baby_df %>%
   geom_point()
 
 ```
+comment: there are some wired values, but overall is good 
 
+Both required models are good. Now consider my own models.  
+
+```{r}
+mymodel =
+  lm(bwt ~ (bhead + blength + delwt + mheight + pnumlbw + ppbmi + ppwt + smoken + wtgain)^2, data = baby_df)
+
+baby_df %>% 
+  modelr::add_residuals(mymodel) %>% 
+  modelr::add_predictions(mymodel) %>% 
+  ggplot(aes(x = pred, y = resid)) +
+  geom_point()
+```
+
+```{r}
+mod_select = step(mymodel, direction = 'backward')
+```
+
+```{r}
+mymodel2 = lm(bwt ~ bhead + blength + delwt + mheight + ppbmi + ppwt + smoken + 
+    wtgain + bhead:mheight + bhead:ppbmi + bhead:smoken + blength:delwt + 
+    blength:mheight + blength:ppbmi + blength:smoken + delwt:ppbmi + 
+    delwt:wtgain + mheight:ppbmi + mheight:ppwt + ppwt:wtgain, data = baby_df)
+baby_df %>% 
+  modelr::add_residuals(mymodel2) %>% 
+  modelr::add_predictions(mymodel2) %>% 
+  ggplot(aes(x = pred, y = resid)) +
+  geom_point()
+```
+
+```{r}
+mod_df = 
+  baby_df %>% 
+  select(bwt, blength, gaweeks, bhead, babysex, delwt, mheight, pnumlbw, ppbmi, ppwt, smoken, wtgain)
+
+cv_mod = 
+  crossv_mc(mod_df, 100) %>% 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble))
+
+cv_mod = 
+  cv_mod %>% 
+  mutate(
+    mod_len_ges  = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+    mod_head_len_sex = map(train, ~lm(bwt ~ bhead * blength * babysex, data = .x)),
+    mod_mine = map(train, ~lm(bwt ~ bhead + blength + delwt + mheight + ppbmi + ppwt + smoken + 
+    wtgain + bhead:mheight + bhead:ppbmi + bhead:smoken + blength:delwt + 
+    blength:mheight + blength:ppbmi + blength:smoken + delwt:ppbmi + 
+    delwt:wtgain + mheight:ppbmi + mheight:ppwt + ppwt:wtgain, data = .x))) %>% 
+  mutate(
+    rmse_len_ges = map2_dbl(mod_len_ges, test, ~rmse(model = .x, data = .y)),
+    rmse_head_len_sex = map2_dbl(mod_head_len_sex, test, ~rmse(model = .x, data = .y)),
+    rmse_mine = map2_dbl(mod_mine, test, ~rmse(model = .x, data = .y)))
+```
+
+Plot the prediction error distribution for each model.
+
+```{r}
+cv_mod %>% 
+  select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model", 
+    values_to = "rmse",
+    names_prefix = "rmse_") %>% 
+  mutate(model = fct_inorder(model)) %>% 
+  ggplot(aes(x = model, y = rmse)) + 
+  geom_violin()
+```
