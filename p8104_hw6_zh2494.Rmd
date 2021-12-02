@@ -161,3 +161,89 @@ cv_mod %>%
   ggplot(aes(x = model, y = rmse)) + 
   geom_violin()
 ```
+
+the head_len_sex and mine models are better than len_ges model. mine model is little bit better than head_len_sex model, though there is a little overlap between them. 
+
+
+# problem 2
+```{r}
+weather_df = 
+  rnoaa::meteo_pull_monitors(
+    c("USW00094728"),
+    var = c("PRCP", "TMIN", "TMAX"), 
+    date_min = "2017-01-01",
+    date_max = "2017-12-31") %>%
+  mutate(
+    name = recode(id, USW00094728 = "CentralPark_NY"),
+    tmin = tmin / 10,
+    tmax = tmax / 10) %>%
+  select(name, id, everything())
+```
+
+Do a simple linear regression with `tmax` as the response and `tmin` as the predictor.  
+use `bootstrap` to generate 5000 samples;  
+fit the linear regression;  
+extract `r.squared` and `log_b1b2` value of each sample
+
+
+```{r}
+simple_df = 
+  weather_df %>%
+  select(tmax, tmin)
+```
+
+```{r}
+simple_df %>% 
+  ggplot(aes(x = tmin, y = tmax)) +
+  geom_point() +
+  stat_smooth(method = "lm")
+```
+
+```{r}
+bootstrap_df =
+  simple_df %>% 
+  modelr::bootstrap(n = 5000) %>% 
+  mutate(
+    models = map(.x = strap, ~lm(tmax ~ tmin, data = .x)),
+    result1 = map(models, broom::glance),
+    result2 = map(models, broom::tidy)
+  ) %>% 
+  select(-strap, -models) %>% 
+  unnest(result1, result2) %>% 
+  select(.id, term, estimate, r.squared) %>% 
+  group_by(.id) %>% 
+  mutate(
+    log_b1b2 = log10(prod(estimate))
+  ) %>% 
+  ungroup
+```
+
+confidence interval for 2.5% and 97.5% quantiles to provide a 95% CI.  
+```{r}
+bootstrap_df %>% 
+  group_by(term) %>% 
+  summarize(
+    rsqr_ci_lower = quantile(r.squared, 0.025),
+    rsqr_ci_higher = quantile(r.squared, 0.975),
+    log_ci_lower = quantile(log_b1b2, 0.025),
+    log_ci_higher = quantile(log_b1b2, 0.975),
+  )
+```
+
+plot the distribution of estimate for `r.squared`.      
+```{r}
+bootstrap_df %>% 
+  filter(term == "tmin") %>% 
+  ggplot(aes(x = r.squared)) + 
+  geom_density()
+```
+comment: the distribution of `r.squared` looks like normal, but it skewed a little bit to the left. Besides, the shape is a little thin.  
+
+plot the distribution of estimate for `log_b1b2`. 
+```{r}
+bootstrap_df %>% 
+  filter(term == "tmin") %>% 
+  ggplot(aes(x = log_b1b2)) + 
+  geom_density()
+```
+comment: the distribution of `log_b1b2` looks like normal, but it skewed a little bit to the left. The shape is a little thin as well.  
