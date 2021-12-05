@@ -5,7 +5,7 @@ date: "11/29/2021"
 output: github_document
 ---
 
-```{r}
+```{r setup, include = FALSE}
 library(tidyverse)
 library(viridis)
 library(modelr)
@@ -34,7 +34,8 @@ set.seed(1)
 read and clean the data  
 * The column names are tidy so no need to do anything  
 * Convert units: (pounds to grams, inches to centimeters)  
-```{r}
+
+```{r, message = FALSE}
 baby_df = 
   read_csv("data/birthweight.csv") %>% 
   mutate(
@@ -67,7 +68,7 @@ model_head_len_sex %>%
   knitr::kable(digits = 3)
 ```
 
-The p-value = 0 becasue it is smaller than the minimum display value. Also notice that `bhead:blength` is not significant.  
+The p-value = 0 because it is smaller than the minimum display value. Also notice that `bhead:blength` is not significant.  
 
 the plot of model residuals against fitted values for the first model: length at birth and gestational age as predictors   
 
@@ -104,11 +105,15 @@ baby_df %>%
   ggplot(aes(x = pred, y = resid)) +
   geom_point()
 ```
+comment: some extreme points exist but overall is good, use stepwise regression to get a proper model.   
 
-```{r}
+
+using step wise regression to get a proper models  
+```{r, echo = TRUE, results = 'hide'}
 mod_select = step(mymodel, direction = 'backward')
 ```
 
+choose the proper model provided by the step wise method  
 ```{r}
 mymodel2 = lm(bwt ~ bhead + blength + delwt + mheight + ppbmi + ppwt + smoken + 
     wtgain + bhead:mheight + bhead:ppbmi + bhead:smoken + blength:delwt + 
@@ -120,6 +125,10 @@ baby_df %>%
   ggplot(aes(x = pred, y = resid)) +
   geom_point()
 ```
+
+comment: the new residual plot is almost the same as the previous one.  
+make a comparison three models in terms of the cross-validated prediction error. 
+use dataset `cv_mod` to do cv process, save models and their `rmse`.  
 
 ```{r}
 mod_df = 
@@ -217,6 +226,8 @@ bootstrap_df =
   ) %>% 
   ungroup
 ```
+
+
 
 confidence interval for 2.5% and 97.5% quantiles to provide a 95% CI.  
 ```{r}
